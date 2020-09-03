@@ -1,4 +1,5 @@
-﻿using HttpServer.Http.Request;
+﻿using HttpServer.Http.Common.WebIO;
+using HttpServer.Http.Request;
 using HttpServer.Http.Response;
 using HttpServer.Server.Servlet;
 using System;
@@ -15,16 +16,18 @@ namespace ServerTest.Servlets
         }
         public override void OnGet(HttpRequest request, HttpResponse response) {
 
-            response.WriteLine("<html><body><h1>");
+            SimplePayloadStream dataStream = response.CreateSimpleStreamWriter();
+
+            dataStream.WriteLine("<html><body><h1>");
 
             string userInput = request.GetParameter("name");
             if(userInput == null) {
-                response.WriteLine("You dont input any thing");
+                dataStream.WriteLine("You dont input any thing");
             }
             else {
-                response.WriteLine("You say : {0}", userInput);
+                dataStream.WriteLine("You say : {0}", userInput);
             }
-            response.WriteLine("</h1></body></html>");
+            dataStream.WriteLine("</h1></body></html>");
         }
     }
 }

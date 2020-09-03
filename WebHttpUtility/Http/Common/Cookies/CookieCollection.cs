@@ -3,29 +3,29 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 
-namespace HttpServer.Http.Common
+namespace HttpServer.Http.Common.Cookies
 {
-    public class Cookie
+    public class CookieCollection
     {
-        private Dictionary<string, string> Cookies = new Dictionary<string, string>();
+        private Dictionary<string, Cookie> Cookies = new Dictionary<string, Cookie>();
 
         public int Count { get => Cookies.Count; }
 
-        public Cookie(string CookieString) {
+        public CookieCollection(string CookieString) {
             if (CookieString.Length == 0) {
                 return;
             }
 
             foreach (var item in CookieParser.ParseCookie(CookieString)) {
-                Cookies.Add(item.Key, item.Value);
+                Cookies.Add(item.Key, new Cookie(item.Key, item.Value));
             }
         }
 
-        public Cookie() {
+        public CookieCollection() {
 
         }
 
-        public void SetCookie(string cookie_name, string value) {
+        public void SetCookie(string cookie_name, Cookie value) {
             if (Cookies.ContainsKey(cookie_name)) {
                 Cookies[cookie_name] = value;
             }
@@ -34,18 +34,16 @@ namespace HttpServer.Http.Common
             }
         }
 
-        public string GetCookie(string cookie_name) {
+        public Cookie GetCookie(string cookie_name) {
             if (Cookies.ContainsKey(cookie_name)) {
                 return Cookies[cookie_name];
             }
-            return string.Empty;
+            return null;
         }
 
         public override string ToString() {
             StringBuilder builder = new StringBuilder();
-            foreach (var item in Cookies) {
-                builder.Append($"{item.Key}={item.Value};");
-            }
+            builder.AppendJoin(';', Cookies.Values);
             return builder.ToString();
         }
 

@@ -1,17 +1,19 @@
 ﻿using HttpServer.Common;
 using HttpServer.Http.Common;
+using HttpServer.Http.Common.WebIO;
 using HttpServer.Http.Request.Parser;
+using HttpServer.Http.Session;
+using HttpServer.Server;
 using HttpServer.Utils;
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Net;
-using System.Text;
+using CookieCollection = HttpServer.Http.Common.Cookies.CookieCollection;
 using HttpVersion = HttpServer.Common.HttpVersion;
 
 namespace HttpServer.Http.Request
 {
-    public sealed class HttpRequest : RequestStream
+    public class HttpRequest
     {
         private IPEndPoint endPoint;
 
@@ -19,8 +21,11 @@ namespace HttpServer.Http.Request
         public HttpMethod Method { get; }
         public HttpVersion ProtocolVersion { get; }
         public string TargetURI { get; }
-        public Common.Cookie RequestCookie { get; }
+        public string QueryString { get; } = string.Empty;
+        public HttpSession Session { get; private set; }
+        public CookieCollection RequestCookie { get; }
         public IPAddress RemoteClientAddress { get => endPoint?.Address; }
+        public WebDataStream RequestContentStream { get; set; }
         public int RemoteClientPort
         {
             get {
@@ -33,23 +38,29 @@ namespace HttpServer.Http.Request
         private Dictionary<string, string> headerFields;
         private Dictionary<string, string> parameters = new Dictionary<string, string>();
 
-        internal HttpRequest(HttpHeader header, HttpSession session)
+        protected HttpRequest() {
+
+        }
+
+        internal HttpRequest(HttpHeader header, HttpConnection connection)
         {
             Method = (HttpMethod)Enum.Parse(typeof(HttpMethod), header.Method);
             ProtocolVersion = HttpVersion.Parse(header.Protocol);
             headerFields = header.HeaderFields;
 
-            RequestCookie = new Common.Cookie(GetHeaderField(HeaderFields.Cookie));
+            RequestCookie = new CookieCollection(GetHeaderField(HeaderFields.Cookie));
 
             string[] url_parts = header.TargetURL.Split('?');
             if (url_parts.Length == 2) {
+                QueryString = url_parts[1];
                 foreach (var item in URLParameterParser.GetURLParameter(url_parts[1])) {
                     parameters.Add(item.Key, item.Value);
                 }
             }
             TargetURI = URLEncodeHelper.URLDecode(url_parts[0]);
 
-            endPoint = session.ActiveSocket.RemoteEndPoint as IPEndPoint;
+            endPoint = connection.ActiveSocket.RemoteEndPoint as IPEndPoint;
+            GetSession(connection.ServerContext);
         }
 
         internal void AddParameter(string paramName, string paramVal) {
@@ -85,6 +96,17 @@ namespace HttpServer.Http.Request
                 return (T)Convert.ChangeType(headerFields[field], typeof(T));
             }
             return default;
+        }
+
+        private void GetSession(HttpServerContext context) {
+            string sessionID = GetHeaderField("Cookie_SessionField").Trim();
+            Guid sid = Guid.Empty;
+            if (!Guid.TryParse(sessionID, out sid)) {
+                Session = context.SessionPool.GetSessionFromPool(Guid.Empty);
+            }
+            else {
+                Session = context.SessionPool.GetSessionFromPool(sid);
+            }
         }
     }
 }

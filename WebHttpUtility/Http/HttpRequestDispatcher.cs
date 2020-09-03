@@ -1,4 +1,5 @@
 ﻿using HttpServer.Common;
+using HttpServer.Http.Common.WebIO;
 using HttpServer.Http.Request;
 using HttpServer.Http.Response;
 using HttpServer.Server;
@@ -56,7 +57,7 @@ namespace HttpServer.Http
                 }
             }
             httpResponse.Flush();
-            request.Dispose();
+            request.RequestContentStream?.Dispose();
             httpResponse.Dispose();
         }
 
@@ -85,7 +86,14 @@ namespace HttpServer.Http
             }
 
             using (FileStream fr = new FileStream(fileAbsPath, FileMode.Open, FileAccess.Read, FileShare.Read)) {
-                httpResponse.CopyStreamFrom(fr);
+                if (ServerContext.ServerConfig.ChunkedModeThershold < 0 ||
+                   fr.Length < ServerContext.ServerConfig.ChunkedModeThershold) {
+                    httpResponse.ResponseDataStream.CopyFrom(fr);
+                }
+                else {
+                    ChunkedStream outputStream = httpResponse.GetChunckedOutputStream();
+                    outputStream.CopyFrom(fr);
+                }
             }
             return true;
         }

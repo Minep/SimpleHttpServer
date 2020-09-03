@@ -1,5 +1,5 @@
 ﻿using HttpServer.Common;
-using HttpServer.Http.Common;
+using HttpServer.Http.Common.WebIO;
 using HttpServer.Server;
 using HttpServer.Server.Resources;
 using System;
@@ -9,31 +9,36 @@ using System.Net;
 using System.Net.Sockets;
 using System.Reflection;
 using System.Text;
-using Cookie = HttpServer.Http.Common.Cookie;
+using CookieCollection = HttpServer.Http.Common.Cookies.CookieCollection;
 
 namespace HttpServer.Http.Response
 {
-    public sealed class HttpResponse : ResponseStream
+    public sealed class HttpResponse : IDisposable
     {
         readonly ServerVersion serverVersion;
 
-        private HttpSession agent;
+        private HttpServerContext serverContext;
+        private HttpConnection agent;
         private HttpStatusCode statusCode = HttpStatusCode.OK;
         private Dictionary<string, string> header;
 
-        MemoryStream response = new MemoryStream();
-
         bool ShouldTerminate = false;
 
-        public Cookie ResponseCookie { get; }
-        public string ContentType { get; set; } = MIMETypeRegistry.DEFAULT_MIME;
+        public CookieCollection ResponseCookie { get; }
+        public string ContentType { get; set; } 
+            = MIMETypeRegistry.DEFAULT_MIME;
         public string ContentCharset { get; set; } = string.Empty;
 
-        internal HttpResponse(HttpSession agent, ServerConfig config) {
+        public WebDataStream ResponseDataStream { get; set; }
+
+        internal HttpResponse(HttpConnection agent) {
             this.agent = agent;
-            serverVersion = config.SERVER_VERSION;
+            this.serverContext = agent.ServerContext;
+            
+            serverVersion = serverContext.ServerConfig.SERVER_VERSION;
             header = new Dictionary<string, string>();
-            ResponseCookie = new Cookie();
+            ResponseCookie = new CookieCollection();
+            ResponseDataStream = new ResponseStream();
 
             RestoreDefaulHeader();
         }
@@ -45,6 +50,16 @@ namespace HttpServer.Http.Response
         public void SetTermination() {
             SetHeader(HeaderFields.Connection, "close");
             ShouldTerminate = true;
+        }
+
+        public SimplePayloadStream CreateSimpleStreamWriter() {
+            if (ResponseDataStream.IsChunkedStream) {
+                ResponseDataStream.Dispose();
+            }
+            else {
+                return ResponseDataStream as SimplePayloadStream;
+            }
+            return (ResponseDataStream = new ResponseStream()) as SimplePayloadStream;
         }
 
         public void SetHeader(string header_field, string content) {
@@ -69,33 +84,41 @@ namespace HttpServer.Http.Response
             statusCode = errorCode;
             SetTermination();
             // Discard all content in the buffer.
-            base.Flush();
-            
-            // Write to client
-            Flush();
+            ResponseDataStream.Flush();
+
+            // Write header to client
+            SendHeader();
         }
 
-        public override void Flush() {
+        public void Flush() {
 
             if (agent.IsShutDown) return;
+            if (ResponseDataStream.IsChunkedStream) return;
 
-            CompleteResponseHeader();
+            if (ResponseDataStream.Length > 0) {
+                SetHeader(HeaderFields.ContenLength, ResponseDataStream.Length.ToString());
+            }
+            byte[] content = ResponseDataStream.ContentToByteArray();
 
-            byte[] resp = Encoding.UTF8.GetBytes(BuildHeader());
-            response.Write(resp);
-            response.Write(ContentToByteArray());
+            SendHeader();
 
-            agent.MarkActiveOnce();
-            agent.ActiveSocket.BeginSend(response.ToArray(), 0, (int)response.Length, 0, 
-                new AsyncCallback(AsyncCallback), agent);
+            agent.ActiveSocket.BeginSend(content, 0, content.Length, 0,
+                new AsyncCallback(ContentFlushOut), agent);
 
-            base.Flush();
+            ResponseDataStream.Flush();
         }
 
-        private void CompleteResponseHeader() {
-            if (Length > 0) {
-                SetHeader(HeaderFields.ContenLength, Length.ToString());
+        public ChunkedStream GetChunckedOutputStream() {
+            if (!ResponseDataStream.IsChunkedStream) {
+                ResponseDataStream.Dispose();
             }
+            else {
+                return ResponseDataStream as ChunkedStream;
+            }
+            return (ResponseDataStream = new ChunckedResponseStream(agent, this)) as ChunkedStream;
+        }
+
+        internal void CompleteResponseHeader() {
             if (ResponseCookie.Count > 0) {
                 SetHeader(HeaderFields.SetCookie, ResponseCookie.ToString());
             }
@@ -108,15 +131,32 @@ namespace HttpServer.Http.Response
             SetHeader(HeaderFields.Date, DateTime.Now.ToString("R"));
         }
 
-        private void AsyncCallback(IAsyncResult result) {
-            HttpSession conn = (HttpSession)result.AsyncState;
+        private void SendHeader() {
+            CompleteResponseHeader();
+            byte[] resp = Encoding.UTF8.GetBytes(GetValidHttpHeader());
+            agent.MarkActiveOnce();
+
+            agent.ActiveSocket.BeginSend(resp, 0, resp.Length, 0,
+                new AsyncCallback(HeaderFlushOut), agent);
+        }
+
+        private void HeaderFlushOut(IAsyncResult result) {
+            HttpConnection conn = (HttpConnection)result.AsyncState;
+            conn.ActiveSocket.EndSend(result);
+            if (ShouldTerminate && ResponseDataStream.Length == 0) {
+                conn.NaturalClose();
+            }
+        }
+
+        private void ContentFlushOut(IAsyncResult result) {
+            HttpConnection conn = (HttpConnection)result.AsyncState;
             conn.ActiveSocket.EndSend(result);
             if (ShouldTerminate) {
                 conn.NaturalClose();
             }
         }
 
-        private string BuildHeader() {
+        public string GetValidHttpHeader() {
             StringBuilder stringBuilder = new StringBuilder();
             stringBuilder.AppendFormat("{0} {1} {2}\r\n",
                 HttpServer.Common.HttpVersion.SERVER_VERSION,
@@ -128,11 +168,8 @@ namespace HttpServer.Http.Response
             return stringBuilder.ToString();
         }
 
-        public override void Dispose() {
-            header.Clear();
-            ResponseCookie.ClearAll();
-            response.Dispose();
-            base.Dispose();
+        public void Dispose() {
+            ResponseDataStream.Dispose();
         }
 
         public void RestoreDefaulHeader() {

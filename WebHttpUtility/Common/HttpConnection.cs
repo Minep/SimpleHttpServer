@@ -8,25 +8,25 @@ using System.Text;
 
 namespace HttpServer.Common
 {
-    public class HttpSession : IComparable, IDisposable
+    public class HttpConnection : IComparable, IDisposable
     {
         public const int BUFFER_SIZE = 1024;
         public int ActiveAcc { get; private set; }
         public DateTime CreatedTimestamp { get; private set; }
-        public bool IsShutDown { get; private set; }
+        public bool IsShutDown { get; private set; } = false;
         public Socket ActiveSocket { get; }
         public byte[] ConnectionBuffer = new byte[BUFFER_SIZE];
         public HttpResponse Response { get; }
         public HttpServerContext ServerContext { get; }
-        public HttpHandler SessionHanlder { get; }
+        public HttpHandler ConnectionHandler { get; }
 
-        public HttpSession(Socket activeSocket, HttpServerContext ServerContext, HttpHandler SessionHanlder) {
+        public HttpConnection(Socket activeSocket, HttpServerContext ServerContext, HttpHandler SessionHanlder) {
             ActiveSocket = activeSocket;
             CreatedTimestamp = DateTime.Now;
 
             this.ServerContext = ServerContext;
-            this.SessionHanlder = SessionHanlder;
-            Response = new HttpResponse(this, ServerContext.ServerConfig);
+            this.ConnectionHandler = SessionHanlder;
+            Response = new HttpResponse(this);
         }
 
         public void MarkActiveOnce() {
@@ -60,6 +60,7 @@ namespace HttpServer.Common
                 ActiveSocket.Close();
                 IsShutDown = true;
                 Response.Dispose();
+                ConnectionHandler.Dispose();
             }
         }
     }

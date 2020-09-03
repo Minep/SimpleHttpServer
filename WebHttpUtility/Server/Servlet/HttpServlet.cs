@@ -44,15 +44,11 @@ namespace HttpServer.Server.Servlet
                     OnDelete(request, response);
                     break;
                 case HttpMethod.OPTIONS:
-                    StringBuilder builder = new StringBuilder();
-                    builder.AppendJoin(',', SupportedMethods);
-                    response.SetStatus(System.Net.HttpStatusCode.OK);
-                    response.SetHeader(HeaderFields.Allow, builder.ToString());
+                    OnOptions(request, response);
                     break;
                 default:
                     break;
             }
-            response.RestoreDefaulHeader();
         }
 
         public virtual void OnGet(HttpRequest request, HttpResponse response) {
@@ -66,6 +62,13 @@ namespace HttpServer.Server.Servlet
         }
         public virtual void OnDelete(HttpRequest request, HttpResponse response) {
 
+        }
+
+        public virtual void OnOptions(HttpRequest request, HttpResponse response) {
+            StringBuilder builder = new StringBuilder();
+            builder.AppendJoin(',', SupportedMethods);
+            response.SetStatus(System.Net.HttpStatusCode.OK);
+            response.SetHeader(HeaderFields.Allow, builder.ToString());
         }
     }
 }

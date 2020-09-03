@@ -16,8 +16,10 @@ namespace HttpServer.Common
         public const string Cookie = "Cookie";
         public const string SetCookie = "Set-Cookie";
         public const string Connection = "Connection";
+        public const string TransferEncoding = "Transfer-Encoding";
         public const string CacheControl = "Cache-Control";
         public const string CacheControl_NoCahe = "no-cache";
 
+        public const string Cookie_SessionField = "LNAXSID";
     }
 }

@@ -49,7 +49,7 @@ namespace HttpServer.tcp
             }
         }
 
-        private Heap<HttpSession> connectionHeap = new Heap<HttpSession>(true);
+        private Heap<HttpConnection> connectionHeap = new Heap<HttpConnection>(true);
 
 
         public ConnectionPooling(HttpServerContext serverContext)
@@ -76,7 +76,7 @@ namespace HttpServer.tcp
             ReleaseDead();
         }
 
-        public void PutConnection(HttpSession connection)
+        public void PutConnection(HttpConnection connection)
         {
             if (connectionHeap.Count < MaxConnections)
             {

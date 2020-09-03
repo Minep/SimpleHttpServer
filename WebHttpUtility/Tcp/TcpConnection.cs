@@ -73,12 +73,12 @@ namespace HttpServer.Tcp
             Socket listenerSocket = (Socket)result.AsyncState;
             Socket workingSocekt = listenerSocket.EndAccept(result);
 
-            HttpSession connection = new HttpSession(workingSocekt, serverContext, new Http.HttpHandler());
+            HttpConnection connection = new HttpConnection(workingSocekt, serverContext, new Http.HttpHandler());
             connectionPool.PutConnection(connection);
 
             workingSocekt.BeginReceive(
-                 connection.ConnectionBuffer, 0, HttpSession.BUFFER_SIZE, 0,
-                 new AsyncCallback(connection.SessionHanlder.ReadCallback), connection);
+                 connection.ConnectionBuffer, 0, HttpConnection.BUFFER_SIZE, 0,
+                 new AsyncCallback(connection.ConnectionHandler.ReadCallback), connection);
         }
     }
 }

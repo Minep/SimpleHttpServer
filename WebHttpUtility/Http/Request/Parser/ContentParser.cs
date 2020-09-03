@@ -45,5 +45,9 @@ namespace HttpServer.Http.Request.Parser
             Content.Seek(0, SeekOrigin.Begin);
             BufferOffset = 0;
         }
+
+        public void Dispose() {
+            Content.Dispose();
+        }
     }
 }

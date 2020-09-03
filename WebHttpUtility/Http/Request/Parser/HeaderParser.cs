@@ -157,5 +157,9 @@ namespace HttpServer.Http.Request.Parser
             builder.Clear();
             builder2.Clear();
         }
+
+        public void Dispose() {
+            
+        }
     }
 }

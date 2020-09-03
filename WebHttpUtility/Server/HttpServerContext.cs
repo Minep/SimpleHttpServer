@@ -1,4 +1,5 @@
 ﻿using HttpServer.Http;
+using HttpServer.Http.Session;
 using HttpServer.Server.Resources;
 using HttpServer.Tcp;
 using System;
@@ -12,6 +13,7 @@ namespace HttpServer.Server
         public ServerConfig ServerConfig { get; }
         public HttpResourceMapping ResourceMapping { get; }
         public HttpRequestDispatcher RequestDispatcher { get; }
+        public HttpSessionPool SessionPool { get; }
 
         private TcpConnection tcpConnection;
 
@@ -20,6 +22,7 @@ namespace HttpServer.Server
             ResourceMapping = new HttpResourceMapping(this);
             RequestDispatcher = new HttpRequestDispatcher(this);
             tcpConnection = new TcpConnection(this);
+            SessionPool = new HttpSessionPool(this);
         }
 
         public void StartServer() {
